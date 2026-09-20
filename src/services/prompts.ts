@@ -345,6 +345,13 @@ export function getSfwGuidelines(): string {
   return guidelines ? substituteVariables(guidelines) : '';
 }
 
+/* Get NSFW guidelines (injected only in NSFW channels)
+ */
+export function getNsfwGuidelines(): string {
+  const guidelines = loadTextFile('persona/nsfw_guidelines.txt');
+  return guidelines ? substituteVariables(guidelines) : '';
+}
+
 export function getBotFamilyCooperationPrompt(): string {
   const botFamily = templateVariables.bot_family || templateVariables.botFamily;
   if (!botFamily) {
