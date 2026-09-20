@@ -338,6 +338,13 @@ export function getPersonaReinforcement(): string {
   return reinforcement ? substituteVariables(reinforcement) : '';
 }
 
+/* Get SFW guidelines (injected only in non-NSFW channels)
+ */
+export function getSfwGuidelines(): string {
+  const guidelines = loadTextFile('persona/sfw_guidelines.txt');
+  return guidelines ? substituteVariables(guidelines) : '';
+}
+
 export function getBotFamilyCooperationPrompt(): string {
   const botFamily = templateVariables.bot_family || templateVariables.botFamily;
   if (!botFamily) {
