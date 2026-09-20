@@ -9,6 +9,7 @@ import {
   ComponentType,
 } from 'discord.js';
 import { spotifyService } from '../services/spotify';
+import { navidromeService } from '../services/navidrome';
 import { musicService, type MusicPlaylist } from '../services/music';
 import type { Command } from '../bot/client';
 
