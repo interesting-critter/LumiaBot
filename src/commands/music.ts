@@ -50,6 +50,11 @@ const musicCommand: Command = {
         .setDescription('Generate a music taste description based on imported tracks')
     )
     .addSubcommand(subcommand =>
+         subcommand
+           .setName('nowplaying')
+           .setDescription('Show what is currently playing on Navidrome')
+    )
+    .addSubcommand(subcommand =>
       subcommand
         .setName('delete')
         .setDescription('Delete an imported playlist (owner only)')
