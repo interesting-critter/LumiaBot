@@ -666,7 +666,6 @@ export class OpenAIService {
     // ── STABLE (never / rarely changes — best cache hit rate) ──────────────
 
     let systemPrompt = `<identity>
-${bolet systemPrompt = `<identity>
 ${botDefinition}
 </identity>`;
 
