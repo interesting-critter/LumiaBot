@@ -78,6 +78,11 @@ export const config = {
     maxResults: parseInt(process.env.SEARXNG_MAX_RESULTS || '5'),
     safeSearch: parseInt(process.env.SEARXNG_SAFE_SEARCH || '1'),
   },
+  navidrome: {
+    url: process.env.NAVIDROME_URL || '',
+    user: process.env.NAVIDROME_USER || '',
+    password: process.env.NAVIDROME_PASSWORD || '',
+  },
   conversation: {
     maxHistoryLength: parseInt(process.env.CONVERSATION_MAX_HISTORY || '20'),
   },
