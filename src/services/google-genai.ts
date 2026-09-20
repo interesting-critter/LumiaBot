@@ -27,7 +27,8 @@ import {
   getMemorySystemTemplate,
   getPersonaReinforcement,
   getBotFamilyCooperationPrompt,
-  getSfwGuidelines
+  getSfwGuidelines,
+  getNsfwGuidelines
 } from './prompts';
 
 /**
@@ -332,7 +333,7 @@ Today is ${currentDateTime}.
 ${getBotDefinition()}
 </identity>`;
 
-    // SFW Guidelines: Only injected if NOT an NSFW channel
+    // Channel safety gating: SFW vs NSFW instructions
     if (options.isNsfwChannel === false) {
       const sfwGuidelines = getSfwGuidelines();
       if (sfwGuidelines) {
@@ -342,7 +343,13 @@ ${getBotDefinition()}
         console.warn(`⚠️ [PROMPT-SAFETY] SFW channel detected, but prompt_storage/persona/sfw_guidelines.txt is empty or missing!`);
       }
     } else {
-      console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — omitting SFW guidelines`);
+      const nsfwGuidelines = getNsfwGuidelines();
+      if (nsfwGuidelines) {
+        systemPrompt += `\n\n<nsfw-guidelines>\n${nsfwGuidelines}\n</nsfw-guidelines>`;
+        console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — injected nsfw_guidelines.txt (${nsfwGuidelines.length} chars)`);
+      } else {
+        console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — no nsfw_guidelines.txt present (unrestricted)`);
+      }
     }
     
     const botFamilyCooperation = getBotFamilyCooperationPrompt();
