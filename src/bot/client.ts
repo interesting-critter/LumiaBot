@@ -765,6 +765,8 @@ ${sections.join('\n\n')}
             }
           : undefined;
 
+      const isNsfwChannel = isDiscordNsfwChannel(message.channel);
+
       // Generate response using the existing message handler
       let response = await handleMessage({
         content: lastMessage.content,
@@ -788,6 +790,7 @@ ${sections.join('\n\n')}
         },
         getUserListeningActivity,
         resolveUserMention,
+        isNsfwChannel,
         allowNsfwImageGeneration,
         // Orchestrator follow-up support: allow the LLM to request another turn
         orchestratorEventId: eventId,
@@ -1680,6 +1683,8 @@ ${sections.join('\n\n')}
         console.log(`🔞 [CLIENT] NSFW image generation enabled in NSFW channel ${message.channelId}`);
       }
 
+      const isNsfwChannel = isDiscordNsfwChannel(message.channel);
+
       // Generate response with tool availability attached for model-directed use
       const response = await handleMessage({
         content: contentWithStickers,
@@ -1702,6 +1707,7 @@ ${sections.join('\n\n')}
         channelMessages: channelTurns,
         getUserListeningActivity,
         resolveUserMention,
+        isNsfwChannel,
         allowNsfwImageGeneration,
         requestCollectiveKnowledge,
       });
