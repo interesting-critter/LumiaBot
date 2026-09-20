@@ -145,6 +145,7 @@ export interface MessageHandlerOptions {
   };
   getUserListeningActivity?: (userId: string) => Promise<MusicActivity | null>;
   resolveUserMention?: ResolveUserMention;
+  isNsfwChannel?: boolean;
   allowNsfwImageGeneration?: boolean;
   // Orchestrator follow-up support
   orchestratorEventId?: string;
@@ -250,7 +251,7 @@ async function processVisionContent(
  * @returns The bot's response with potential reactions
  */
 export async function handleMessage(options: MessageHandlerOptions): Promise<MessageHandlerResponse> {
-    const { content, enableSearch, enableKnowledgeGraph, imageUrls, videoUrls, textAttachments, pageContents, userId, username, guildId, mentionedUsers, replyContext, boredomAction, channelMessages, orchestratorContextNote, currentMessageSpeaker, getUserListeningActivity, resolveUserMention, allowNsfwImageGeneration, orchestratorEventId, orchestratorTurnId, requestFollowUp, requestCollectiveKnowledge } = options;
+    const { content, enableSearch, enableKnowledgeGraph, imageUrls, videoUrls, textAttachments, pageContents, userId, username, guildId, mentionedUsers, replyContext, boredomAction, channelMessages, orchestratorContextNote, currentMessageSpeaker, getUserListeningActivity, resolveUserMention, isNsfwChannel, allowNsfwImageGeneration, orchestratorEventId, orchestratorTurnId, requestFollowUp, requestCollectiveKnowledge } = options;
 
   try {
     // Parse message for pronouns and mentions BEFORE processing
@@ -381,6 +382,7 @@ export async function handleMessage(options: MessageHandlerOptions): Promise<Mes
       conversationSummary: conversationSummary || undefined,
       getUserListeningActivity,
       resolveUserMention,
+      isNsfwChannel,
       allowNsfwImageGeneration,
       orchestratorEventId,
       orchestratorTurnId,
