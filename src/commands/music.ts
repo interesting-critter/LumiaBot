@@ -779,7 +779,36 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
          embed.addFields({ name: 'Also Active', value: otherTracks });
        }
 
-       await interaction.editReply({ embeds: [embed], files });
+       // Button to load lyrics
+       const lyricsButtonRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+         new ButtonBuilder()
+           .setCustomId(`navidrome_lyrics_${interaction.id}`)
+           .setLabel('📜 Show Lyrics')
+           .setStyle(ButtonStyle.Secondary)
+       );
+
+       const responseMsg = await interaction.editReply({
+         embeds: [embed],
+         files,
+         components: [lyricsButtonRow],
+       });
+
+       // Create button collector for the lyrics
+       const collector = responseMsg.createMessageComponentCollector({
+         componentType: ComponentType.Button,
+         time: 120_000, // 2 minutes
+       });
+
+       collector.on('collect', async (btnInteraction) => {
+         if (btnInteraction.customId === `navidrome_lyrics_${interaction.id}`) {
+           await handleShowLyrics(btnInteraction, current.artist, current.title);
+         }
+       });
+
+       collector.on('end', () => {
+         lyricsButtonRow.components.forEach((c) => c.setDisabled(true));
+         interaction.editReply({ components: [lyricsButtonRow] }).catch(() => {});
+       });
      } catch (error) {
        console.error('❌ [NAVIDROME] Error:', error);
        const message = error instanceof Error ? error.message : 'Unknown error';
@@ -787,4 +816,102 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
          content: `❌ Failed to fetch from Navidrome: ${message}`,
        });
      }
+}
+
+/**
+ * Handles fetching and paginating lyrics in an interactive embed
+ */
+async function handleShowLyrics(
+  interaction: any,
+  artist: string,
+  title: string
+) {
+  await interaction.deferReply({ ephemeral: true });
+
+  const rawLyrics = await navidromeService.getLyrics(artist, title);
+
+  if (!rawLyrics || !rawLyrics.trim()) {
+    await interaction.editReply({
+      content: `❌ No lyrics found on Navidrome for **${title}** by **${artist}**.`,
+    });
+    return;
+  }
+
+  // Strip LRC timestamps if present: [00:12.34]
+  const cleanLyrics = rawLyrics.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim();
+
+  // Split lyrics into pages of ~1000 characters so Discord embeds don't overflow
+  const lines = cleanLyrics.split('\n');
+  const pages: string[] = [];
+  let currentPage = '';
+
+  for (const line of lines) {
+    if ((currentPage + line).length > 900) {
+      pages.push(currentPage.trim());
+      currentPage = '';
+    }
+    currentPage += line + '\n';
+  }
+  if (currentPage.trim()) {
+    pages.push(currentPage.trim());
+  }
+
+  let pageIndex = 0;
+
+  const buildLyricsEmbed = (idx: number) => {
+    return new EmbedBuilder()
+      .setTitle(`📜 Lyrics: ${title}`)
+      .setDescription(`**${artist}**\n\n${pages[idx]}`)
+      .setColor(0x00A4DC)
+      .setFooter({ text: `Page ${idx + 1} of ${pages.length}` });
+  };
+
+  const buildNavRow = (idx: number) => {
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+      new ButtonBuilder()
+        .setCustomId('lyrics_prev')
+        .setLabel('◀ Prev')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(idx === 0),
+      new ButtonBuilder()
+        .setCustomId('lyrics_next')
+        .setLabel('Next ▶')
+        .setStyle(ButtonStyle.Primary)
+        .setDisabled(idx === pages.length - 1)
+    );
+  };
+
+  const replyMsg = await interaction.editReply({
+    embeds: [buildLyricsEmbed(pageIndex)],
+    components: pages.length > 1 ? [buildNavRow(pageIndex)] : [],
+  });
+
+  if (pages.length <= 1) return;
+
+  const pageCollector = replyMsg.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: 180_000, // 3 minutes
+  });
+
+  pageCollector.on('collect', async (i: any) => {
+    if (i.user.id !== interaction.user.id) {
+      await i.reply({ content: '❌ Not your session.', ephemeral: true });
+      return;
+    }
+
+    if (i.customId === 'lyrics_prev') {
+      pageIndex = Math.max(0, pageIndex - 1);
+    } else if (i.customId === 'lyrics_next') {
+      pageIndex = Math.min(pages.length - 1, pageIndex + 1);
+    }
+
+    await i.update({
+      embeds: [buildLyricsEmbed(pageIndex)],
+      components: [buildNavRow(pageIndex)],
+    });
+  });
+
+  pageCollector.on('end', () => {
+    interaction.editReply({ components: [] }).catch(() => {});
+  });
 }
