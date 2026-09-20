@@ -673,7 +673,12 @@ ${botDefinition}
       const sfwGuidelines = getSfwGuidelines();
       if (sfwGuidelines) {
         systemPrompt += `\n\n<sfw-guidelines>\n${sfwGuidelines}\n</sfw-guidelines>`;
+        console.log(`🛡️  [PROMPT-SAFETY] SFW channel detected — injected sfw_guidelines.txt (${sfwGuidelines.length} chars)`);
+      } else {
+        console.warn(`⚠️ [PROMPT-SAFETY] SFW channel detected, but prompt_storage/persona/sfw_guidelines.txt is empty or missing!`);
       }
+    } else {
+      console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — omitting SFW guidelines`);
     }
 
     // Persona reinforcement — static anchor, keep near top for cache stability
