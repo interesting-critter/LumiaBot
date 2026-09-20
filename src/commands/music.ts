@@ -112,6 +112,9 @@ const musicCommand: Command = {
       case 'clear-all':
         await handleClearAll(interaction);
         break;
+      case 'nowplaying':
+           await handleNowPlaying(interaction);
+           break;
       default:
         await interaction.reply({
           content: '❓ Unknown subcommand!',
@@ -723,4 +726,57 @@ function formatDate(isoString: string): string {
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
+     await interaction.deferReply();
+
+     if (!navidromeService.isAvailable()) {
+       await interaction.editReply({
+         content: '❌ Navidrome is not configured. Please set NAVIDROME_URL, NAVIDROME_USER, and NAVIDROME_PASSWORD in your environment.',
+       });
+       return;
+     }
+
+     try {
+       const nowPlaying = await navidromeService.getNowPlaying();
+
+       if (nowPlaying.length === 0) {
+         await interaction.editReply({
+           content: '🎧 Nothing is currently playing on Navidrome.',
+         });
+         return;
+       }
+
+       const embed = new EmbedBuilder()
+         .setTitle('🎧 Currently Playing on Navidrome')
+         .setColor(0x00A4DC);
+
+       const current = nowPlaying[0];
+       embed.setDescription(`**${current.title}**\nby **${current.artist}**`);
+       embed.addFields(
+         { name: '💿 Album', value: current.album, inline: true },
+         { name: '👤 Listener', value: current.username, inline: true },
+         { name: '⏱️ Status', value: current.minutesAgo === 0 ? 'Playing now' : `Played ${current.minutesAgo}m ago`, inline: true }
+       );
+
+       if (current.coverArt) {
+         embed.setThumbnail(current.coverArt);
+       }
+
+       if (nowPlaying.length > 1) {
+         const otherTracks = nowPlaying.slice(1, 4).map(
+           (t) => `• **${t.title}** - ${t.artist} (${t.username})`
+         ).join('\n');
+         embed.addFields({ name: 'Also Active', value: otherTracks });
+       }
+
+       await interaction.editReply({ embeds: [embed] });
+     } catch (error) {
+       console.error('❌ [NAVIDROME] Error:', error);
+       const message = error instanceof Error ? error.message : 'Unknown error';
+       await interaction.editReply({
+         content: `❌ Failed to fetch from Navidrome: ${message}`,
+       });
+     }
 }
