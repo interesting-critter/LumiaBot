@@ -79,10 +79,25 @@ export class NavidromeService {
       username: item.username || 'Unknown User',
       minutesAgo: item.minutesAgo ?? 0,
       duration: item.duration,
-      coverArt: item.coverArt
-        ? `${this.baseUrl}/rest/getCoverArt.view?${params.toString()}&id=${item.coverArt}`
-        : undefined,
+      coverArt: item.coverArt || undefined,
     }));
+  }
+  async getCoverArtBuffer(coverArtId: string): Promise<Buffer | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const params = this.getAuthParams();
+      const url = `${this.baseUrl}/rest/getCoverArt.view?${params.toString()}&id=${encodeURIComponent(coverArtId)}`;
+
+      const res = await fetch(url);
+      if (!res.ok) return null;
+
+      const arrayBuffer = await res.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (err) {
+      console.error('❌ [NAVIDROME] Failed to fetch cover art buffer:', err);
+      return null;
+    }
   }
 }
 
