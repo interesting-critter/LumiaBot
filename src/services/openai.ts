@@ -27,7 +27,8 @@ import {
   getReplyContextTemplate,
   getMemorySystemTemplate,
   getPersonaReinforcement,
-  getBotFamilyCooperationPrompt
+  getBotFamilyCooperationPrompt,
+  getSfwGuidelines
 } from './prompts';
 
 // Moonshot pricing (per million tokens)
@@ -127,6 +128,7 @@ export interface ChatCompletionOptions {
   orchestratorTurnId?: string;
   requestFollowUp?: (eventId: string, turnId: string, targetBotId?: string, reason?: string) => Promise<{ approved: boolean; reason: string }>;
   requestCollectiveKnowledge?: (query: string, maxResults?: number) => Promise<string>;
+  isNsfwChannel?: boolean;
   allowNsfwImageGeneration?: boolean;
   onImageGenerated?: (image: GeneratedImageAttachment) => void;
 }
@@ -655,7 +657,8 @@ export class OpenAIService {
     mentionedUsers?: Map<string, string>,
     pageContents?: { url: string; title: string; content: string; excerpt?: string; siteName?: string; byline?: string }[],
     imageToolEnabled?: boolean,
-    allowNsfwImageGeneration?: boolean
+    allowNsfwImageGeneration?: boolean,
+    isNsfwChannel?: boolean
   ): string {
     const botDefinition = getBotDefinition();
 
@@ -664,6 +667,14 @@ export class OpenAIService {
     let systemPrompt = `<identity>
 ${botDefinition}
 </identity>`;
+
+    // SFW Guidelines: Only injected if NOT an NSFW channel
+    if (isNsfwChannel === false) {
+      const sfwGuidelines = getSfwGuidelines();
+      if (sfwGuidelines) {
+        systemPrompt += `\n\n<sfw-guidelines>\n${sfwGuidelines}\n</sfw-guidelines>`;
+      }
+    }
 
     // Persona reinforcement — static anchor, keep near top for cache stability
     const reinforcement = getPersonaReinforcement();
@@ -924,7 +935,7 @@ If they mention @OtherUser, they are talking TO that user, not AS them.`;
       : undefined;
 
     // Build system prompt with user memory, guild context, and knowledge instruction
-    const systemPrompt = this.buildSystemPrompt(userId, username, guildId, hasVideos, replyContext, knowledgeInstruction, collectiveKnowledgeContext, boredomAction, orchestratorContextNote, enableMusicTaste, lastMessageContent, conversationSummary, textAttachments, mentionedUsers, pageContents, imageToolEnabled, options.allowNsfwImageGeneration);
+    const systemPrompt = this.buildSystemPrompt(userId, username, guildId, hasVideos, replyContext, knowledgeInstruction, collectiveKnowledgeContext, boredomAction, orchestratorContextNote, enableMusicTaste, lastMessageContent, conversationSummary, textAttachments, mentionedUsers, pageContents, imageToolEnabled, options.allowNsfwImageGeneration, options.isNsfwChannel);
 
     // Convert image URLs to base64 data URIs so external APIs can access them
     let processedImages = images;
@@ -2258,7 +2269,7 @@ ONLY use this tool when you detect CLEAR, EXPLICIT intent to change boredom sett
       : undefined;
 
     // Build system prompt with knowledge instruction
-    const systemPrompt = this.buildSystemPrompt(userId, username, guildId, hasVideos, replyContext, knowledgeInstruction, collectiveKnowledgeContext, boredomAction, orchestratorContextNote, enableMusicTaste, lastMessageContent, conversationSummary, textAttachments, mentionedUsers, pageContents, imageToolEnabled, options.allowNsfwImageGeneration);
+    const systemPrompt = this.buildSystemPrompt(userId, username, guildId, hasVideos, replyContext, knowledgeInstruction, collectiveKnowledgeContext, boredomAction, orchestratorContextNote, enableMusicTaste, lastMessageContent, conversationSummary, textAttachments, mentionedUsers, pageContents, imageToolEnabled, options.allowNsfwImageGeneration, options.isNsfwChannel);
 
     // Build the per-turn user message prefix: datetime reminder + persona directive.
     const now = new Date();
