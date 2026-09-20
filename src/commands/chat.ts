@@ -37,6 +37,10 @@ const command: Command = {
     const enableSearch = interaction.options.getBoolean('search');
     const imageAttachment = interaction.options.getAttachment('image');
     const videoAttachment = interaction.options.getAttachment('video');
+
+    // Check if channel is NSFW
+    const channel = interaction.channel;
+    const isNsfwChannel = channel && 'nsfw' in channel ? Boolean(channel.nsfw) : false;
     
     // Extract image URL if attachment is provided
     const imageUrls: string[] = [];
@@ -72,6 +76,7 @@ const command: Command = {
         userId: interaction.user.id,
         username: interaction.user.username,
         guildId: interaction.guildId || 'dm',
+        isNsfwChannel,
       });
 
       // Discord has a 2000 character limit for messages
