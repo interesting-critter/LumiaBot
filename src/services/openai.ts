@@ -28,7 +28,8 @@ import {
   getMemorySystemTemplate,
   getPersonaReinforcement,
   getBotFamilyCooperationPrompt,
-  getSfwGuidelines
+  getSfwGuidelines,
+  getNsfwGuidelines
 } from './prompts';
 
 // Moonshot pricing (per million tokens)
@@ -665,10 +666,11 @@ export class OpenAIService {
     // ── STABLE (never / rarely changes — best cache hit rate) ──────────────
 
     let systemPrompt = `<identity>
+${bolet systemPrompt = `<identity>
 ${botDefinition}
 </identity>`;
 
-    // SFW Guidelines: Only injected if NOT an NSFW channel
+    // Channel safety gating: SFW vs NSFW instructions
     if (isNsfwChannel === false) {
       const sfwGuidelines = getSfwGuidelines();
       if (sfwGuidelines) {
@@ -678,7 +680,13 @@ ${botDefinition}
         console.warn(`⚠️ [PROMPT-SAFETY] SFW channel detected, but prompt_storage/persona/sfw_guidelines.txt is empty or missing!`);
       }
     } else {
-      console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — omitting SFW guidelines`);
+      const nsfwGuidelines = getNsfwGuidelines();
+      if (nsfwGuidelines) {
+        systemPrompt += `\n\n<nsfw-guidelines>\n${nsfwGuidelines}\n</nsfw-guidelines>`;
+        console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — injected nsfw_guidelines.txt (${nsfwGuidelines.length} chars)`);
+      } else {
+        console.log(`🔞 [PROMPT-SAFETY] NSFW channel detected — no nsfw_guidelines.txt present (unrestricted)`);
+      }
     }
 
     // Persona reinforcement — static anchor, keep near top for cache stability
