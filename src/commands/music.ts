@@ -7,6 +7,7 @@ import {
   ButtonBuilder,
   ButtonStyle,
   ComponentType,
+  AttachmentBuilder,
 } from 'discord.js';
 import { spotifyService } from '../services/spotify';
 import { navidromeService } from '../services/navidrome';
@@ -760,8 +761,15 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
          { name: '⏱️ Status', value: current.minutesAgo === 0 ? 'Playing now' : `Played ${current.minutesAgo}m ago`, inline: true }
        );
 
+       const files: AttachmentBuilder[] = [];
+
        if (current.coverArt) {
-         embed.setThumbnail(current.coverArt);
+         const artBuffer = await navidromeService.getCoverArtBuffer(current.coverArt);
+         if (artBuffer) {
+           const attachment = new AttachmentBuilder(artBuffer, { name: 'cover.jpg' });
+           embed.setThumbnail('attachment://cover.jpg');
+           files.push(attachment);
+         }
        }
 
        if (nowPlaying.length > 1) {
@@ -771,7 +779,7 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
          embed.addFields({ name: 'Also Active', value: otherTracks });
        }
 
-       await interaction.editReply({ embeds: [embed] });
+       await interaction.editReply({ embeds: [embed], files });
      } catch (error) {
        console.error('❌ [NAVIDROME] Error:', error);
        const message = error instanceof Error ? error.message : 'Unknown error';
