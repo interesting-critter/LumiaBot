@@ -918,28 +918,18 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
       return embed;
     };
 
-    // Helper to render buttons
+    // Helper to render buttons (5 lines up / down side by side)
     const renderRow = (activeIndex: number) => {
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('lyrics_prev_fast')
-          .setLabel('▲▲ -5')
-          .setStyle(ButtonStyle.Secondary)
-          .setDisabled(activeIndex === 0),
-        new ButtonBuilder()
-          .setCustomId('lyrics_prev')
-          .setLabel('▲ Line Up')
+          .setLabel('▲ Scroll Up (5 lines)')
           .setStyle(ButtonStyle.Primary)
           .setDisabled(activeIndex === 0),
-        new ButtonBuilder()
-          .setCustomId('lyrics_next')
-          .setLabel('▼ Line Down')
-          .setStyle(ButtonStyle.Primary)
-          .setDisabled(activeIndex >= lyricsLines.length - 1),
         new ButtonBuilder()
           .setCustomId('lyrics_next_fast')
-          .setLabel('▼▼ +5')
-          .setStyle(ButtonStyle.Secondary)
+          .setLabel('▼ Scroll Down (5 lines)')
+          .setStyle(ButtonStyle.Primary)
           .setDisabled(activeIndex >= lyricsLines.length - 1)
       );
     };
@@ -969,12 +959,7 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
     });
 
     collector.on('collect', async (btnInteraction) => {
-      // Any user in the channel can scroll
-      if (btnInteraction.customId === 'lyrics_prev') {
-        currentLineIndex = Math.max(0, currentLineIndex - 1);
-      } else if (btnInteraction.customId === 'lyrics_next') {
-        currentLineIndex = Math.min(lyricsLines.length - 1, currentLineIndex + 1);
-      } else if (btnInteraction.customId === 'lyrics_prev_fast') {
+      if (btnInteraction.customId === 'lyrics_prev_fast') {
         currentLineIndex = Math.max(0, currentLineIndex - 5);
       } else if (btnInteraction.customId === 'lyrics_next_fast') {
         currentLineIndex = Math.min(lyricsLines.length - 1, currentLineIndex + 5);
