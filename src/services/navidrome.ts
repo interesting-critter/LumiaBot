@@ -99,6 +99,36 @@ export class NavidromeService {
       return null;
     }
   }
+  /**
+   * Fetch lyrics from Navidrome for a given artist and title
+   */
+  async getLyrics(artist: string, title: string): Promise<string | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const params = this.getAuthParams();
+      params.set('artist', artist);
+      params.set('title', title);
+
+      const url = `${this.baseUrl}/rest/getLyrics.view?${params.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      const lyricsData = json?.['subsonic-response']?.lyrics;
+      if (!lyricsData) return null;
+
+      // Subsonic returns either a plain string or an object with content
+      if (typeof lyricsData === 'string') return lyricsData;
+      if (lyricsData.content) return lyricsData.content;
+      if (lyricsData.value) return lyricsData.value;
+
+      return null;
+    } catch (err) {
+      console.error('❌ [NAVIDROME] Failed to fetch lyrics:', err);
+      return null;
+    }
+  }
 }
 
 export const navidromeService = new NavidromeService();
