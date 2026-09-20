@@ -26,7 +26,8 @@ import {
   getReplyContextTemplate,
   getMemorySystemTemplate,
   getPersonaReinforcement,
-  getBotFamilyCooperationPrompt
+  getBotFamilyCooperationPrompt,
+  getSfwGuidelines
 } from './prompts';
 
 /**
@@ -105,6 +106,7 @@ export interface ChatCompletionOptions {
   orchestratorTurnId?: string; // The current orchestrator turn ID
   requestFollowUp?: (eventId: string, turnId: string, targetBotId?: string, reason?: string) => Promise<{ approved: boolean; reason: string }>;
   requestCollectiveKnowledge?: (query: string, maxResults?: number) => Promise<string>;
+  isNsfwChannel?: boolean;
   allowNsfwImageGeneration?: boolean;
   onImageGenerated?: (image: GeneratedImageAttachment) => void;
 }
@@ -330,6 +332,14 @@ Today is ${currentDateTime}.
 ${getBotDefinition()}
 </identity>`;
 
+    // SFW Guidelines: Only injected if NOT an NSFW channel
+    if (options.isNsfwChannel === false) {
+      const sfwGuidelines = getSfwGuidelines();
+      if (sfwGuidelines) {
+        systemPrompt += `\n\n<sfw-guidelines>\n${sfwGuidelines}\n</sfw-guidelines>`;
+      }
+    }
+    
     const botFamilyCooperation = getBotFamilyCooperationPrompt();
     if (botFamilyCooperation) {
       systemPrompt += `\n\n${botFamilyCooperation}`;
