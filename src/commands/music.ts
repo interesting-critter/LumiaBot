@@ -923,12 +923,12 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
       return new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
           .setCustomId('lyrics_prev_fast')
-          .setLabel('▲ Scroll Up (5 lines)')
+          .setLabel('▲ Up')
           .setStyle(ButtonStyle.Primary)
           .setDisabled(activeIndex === 0),
         new ButtonBuilder()
           .setCustomId('lyrics_next_fast')
-          .setLabel('▼ Scroll Down (5 lines)')
+          .setLabel('▼ Down')
           .setStyle(ButtonStyle.Primary)
           .setDisabled(activeIndex >= lyricsLines.length - 1)
       );
