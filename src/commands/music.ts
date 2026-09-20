@@ -821,97 +821,182 @@ async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
 /**
  * Handles fetching and paginating lyrics in an interactive embed
  */
-async function handleShowLyrics(
-  interaction: any,
-  artist: string,
-  title: string
-) {
-  await interaction.deferReply({ ephemeral: true });
+async function handleNowPlaying(interaction: ChatInputCommandInteraction) {
+  await interaction.deferReply();
 
-  const rawLyrics = await navidromeService.getLyrics(artist, title);
-
-  if (!rawLyrics || !rawLyrics.trim()) {
+  if (!navidromeService.isAvailable()) {
     await interaction.editReply({
-      content: `❌ No lyrics found on Navidrome for **${title}** by **${artist}**.`,
+      content: '❌ Navidrome is not configured. Please set NAVIDROME_URL, NAVIDROME_USER, and NAVIDROME_PASSWORD in your environment.',
     });
     return;
   }
 
-  // Strip LRC timestamps if present: [00:12.34]
-  const cleanLyrics = rawLyrics.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim();
+  try {
+    const nowPlaying = await navidromeService.getNowPlaying();
 
-  // Split lyrics into pages of ~1000 characters so Discord embeds don't overflow
-  const lines = cleanLyrics.split('\n');
-  const pages: string[] = [];
-  let currentPage = '';
-
-  for (const line of lines) {
-    if ((currentPage + line).length > 900) {
-      pages.push(currentPage.trim());
-      currentPage = '';
-    }
-    currentPage += line + '\n';
-  }
-  if (currentPage.trim()) {
-    pages.push(currentPage.trim());
-  }
-
-  let pageIndex = 0;
-
-  const buildLyricsEmbed = (idx: number) => {
-    return new EmbedBuilder()
-      .setTitle(`📜 Lyrics: ${title}`)
-      .setDescription(`**${artist}**\n\n${pages[idx]}`)
-      .setColor(0x00A4DC)
-      .setFooter({ text: `Page ${idx + 1} of ${pages.length}` });
-  };
-
-  const buildNavRow = (idx: number) => {
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('lyrics_prev')
-        .setLabel('◀ Prev')
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(idx === 0),
-      new ButtonBuilder()
-        .setCustomId('lyrics_next')
-        .setLabel('Next ▶')
-        .setStyle(ButtonStyle.Primary)
-        .setDisabled(idx === pages.length - 1)
-    );
-  };
-
-  const replyMsg = await interaction.editReply({
-    embeds: [buildLyricsEmbed(pageIndex)],
-    components: pages.length > 1 ? [buildNavRow(pageIndex)] : [],
-  });
-
-  if (pages.length <= 1) return;
-
-  const pageCollector = replyMsg.createMessageComponentCollector({
-    componentType: ComponentType.Button,
-    time: 180_000, // 3 minutes
-  });
-
-  pageCollector.on('collect', async (i: any) => {
-    if (i.user.id !== interaction.user.id) {
-      await i.reply({ content: '❌ Not your session.', ephemeral: true });
+    if (nowPlaying.length === 0) {
+      await interaction.editReply({
+        content: '🎧 Nothing is currently playing on Navidrome.',
+      });
       return;
     }
 
-    if (i.customId === 'lyrics_prev') {
-      pageIndex = Math.max(0, pageIndex - 1);
-    } else if (i.customId === 'lyrics_next') {
-      pageIndex = Math.min(pages.length - 1, pageIndex + 1);
+    const current = nowPlaying[0];
+
+    // Fetch lyrics directly for the track
+    const rawLyrics = await navidromeService.getLyrics(current.artist, current.title);
+    const lyricsLines: string[] = rawLyrics
+      ? rawLyrics
+          .replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '') // Strip LRC timestamps
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+      : [];
+
+    // Viewport window settings
+    const VIEWPORT_SIZE = 5; // Number of lines visible at once
+    let currentLineIndex = 0; // The active/highlighted line index
+
+    // Helper to render the embed
+    const renderEmbed = (activeIndex: number) => {
+      const embed = new EmbedBuilder()
+        .setTitle('🎧 Currently Playing on Navidrome')
+        .setColor(0x00a4dc);
+
+      let desc = `**${current.title}**\nby **${current.artist}**\n`;
+
+      if (lyricsLines.length > 0) {
+        desc += '\n**Lyrics:**\n```yaml\n';
+
+        const half = Math.floor(VIEWPORT_SIZE / 2);
+        let start = activeIndex - half;
+        let end = activeIndex + half + 1;
+
+        if (start < 0) {
+          end = Math.min(lyricsLines.length, end + Math.abs(start));
+          start = 0;
+        }
+        if (end > lyricsLines.length) {
+          start = Math.max(0, start - (end - lyricsLines.length));
+          end = lyricsLines.length;
+        }
+
+        for (let i = start; i < end; i++) {
+          if (i === activeIndex) {
+            desc += `> ${lyricsLines[i]}\n`; // Highlighted line
+          } else {
+            desc += `  ${lyricsLines[i]}\n`;
+          }
+        }
+        desc += '```';
+      } else {
+        desc += '\n*(No lyrics available for this track)*\n';
+      }
+
+      embed.setDescription(desc);
+
+      embed.addFields(
+        { name: '💿 Album', value: current.album, inline: true },
+        { name: '👤 Listener', value: current.username, inline: true },
+        {
+          name: '⏱️ Status',
+          value: current.minutesAgo === 0 ? 'Playing now' : `Played ${current.minutesAgo}m ago`,
+          inline: true,
+        }
+      );
+
+      if (current.coverArt) {
+        embed.setThumbnail('attachment://cover.jpg');
+      }
+
+      if (lyricsLines.length > 0) {
+        embed.setFooter({
+          text: `Line ${activeIndex + 1} of ${lyricsLines.length} • Use buttons below to scroll`,
+        });
+      }
+
+      return embed;
+    };
+
+    // Helper to render buttons
+    const renderRow = (activeIndex: number) => {
+      return new ActionRowBuilder<ButtonBuilder>().addComponents(
+        new ButtonBuilder()
+          .setCustomId('lyrics_prev_fast')
+          .setLabel('▲▲ -5')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(activeIndex === 0),
+        new ButtonBuilder()
+          .setCustomId('lyrics_prev')
+          .setLabel('▲ Line Up')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(activeIndex === 0),
+        new ButtonBuilder()
+          .setCustomId('lyrics_next')
+          .setLabel('▼ Line Down')
+          .setStyle(ButtonStyle.Primary)
+          .setDisabled(activeIndex >= lyricsLines.length - 1),
+        new ButtonBuilder()
+          .setCustomId('lyrics_next_fast')
+          .setLabel('▼▼ +5')
+          .setStyle(ButtonStyle.Secondary)
+          .setDisabled(activeIndex >= lyricsLines.length - 1)
+      );
+    };
+
+    const files: AttachmentBuilder[] = [];
+    if (current.coverArt) {
+      const artBuffer = await navidromeService.getCoverArtBuffer(current.coverArt);
+      if (artBuffer) {
+        files.push(new AttachmentBuilder(artBuffer, { name: 'cover.jpg' }));
+      }
     }
 
-    await i.update({
-      embeds: [buildLyricsEmbed(pageIndex)],
-      components: [buildNavRow(pageIndex)],
-    });
-  });
+    const initialComponents = lyricsLines.length > 0 ? [renderRow(currentLineIndex)] : [];
 
-  pageCollector.on('end', () => {
-    interaction.editReply({ components: [] }).catch(() => {});
-  });
+    const replyMsg = await interaction.editReply({
+      embeds: [renderEmbed(currentLineIndex)],
+      files,
+      components: initialComponents,
+    });
+
+    if (lyricsLines.length === 0) return;
+
+    // Allow scrolling for 5 minutes
+    const collector = replyMsg.createMessageComponentCollector({
+      componentType: ComponentType.Button,
+      time: 300_000,
+    });
+
+    collector.on('collect', async (btnInteraction) => {
+      // Any user in the channel can scroll
+      if (btnInteraction.customId === 'lyrics_prev') {
+        currentLineIndex = Math.max(0, currentLineIndex - 1);
+      } else if (btnInteraction.customId === 'lyrics_next') {
+        currentLineIndex = Math.min(lyricsLines.length - 1, currentLineIndex + 1);
+      } else if (btnInteraction.customId === 'lyrics_prev_fast') {
+        currentLineIndex = Math.max(0, currentLineIndex - 5);
+      } else if (btnInteraction.customId === 'lyrics_next_fast') {
+        currentLineIndex = Math.min(lyricsLines.length - 1, currentLineIndex + 5);
+      }
+
+      await btnInteraction.update({
+        embeds: [renderEmbed(currentLineIndex)],
+        components: [renderRow(currentLineIndex)],
+      });
+    });
+
+    collector.on('end', () => {
+      // Disable buttons after collector expires
+      const disabledRow = renderRow(currentLineIndex);
+      disabledRow.components.forEach((btn) => btn.setDisabled(true));
+      interaction.editReply({ components: [disabledRow] }).catch(() => {});
+    });
+  } catch (error) {
+    console.error('❌ [NAVIDROME] Error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    await interaction.editReply({
+      content: `❌ Failed to fetch from Navidrome: ${message}`,
+    });
+  }
 }
