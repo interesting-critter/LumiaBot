@@ -15,6 +15,7 @@ import { orchestratorTurnJournal } from '../services/orchestrator/turn-journal';
 import type { MessageContext, ReplyContext, MediaAttachment, TextAttachment, ResponseRequestPayload, CollectiveKnowledgeResultPayload } from '../services/orchestrator/types';
 import type { ResolvedUserMention, ResolveUserMention } from '../services/user-mention-resolver';
 import type { GeneratedImageAttachment } from '../services/swarmui';
+import { navidromeService } from '../services/navidrome';
 
 export interface Command {
   data: {
@@ -729,13 +730,26 @@ ${sections.join('\n\n')}
       // from the original Discord message, matching the non-orchestrator path.
       const getUserListeningActivity = async (targetUserId: string) => {
         try {
-          if (!message.guild) return null;
-          const member = await message.guild.members.fetch({
-            user: targetUserId,
-            withPresences: true,
-          });
-          if (!member) return null;
-          return userActivityService.getMusicActivity(member);
+          if (message.guild) {
+            try {
+              const member = await message.guild.members.fetch({
+                user: targetUserId,
+                withPresences: true,
+              });
+              if (member) {
+                const discordActivity = userActivityService.getMusicActivity(member);
+                if (discordActivity) return discordActivity;
+              }
+            } catch {
+              // Continue to Navidrome
+            }
+          }
+
+          if (targetUserId === config.bot.ownerId && navidromeService.isAvailable()) {
+            return await navidromeService.getListeningActivity();
+          }
+
+          return null;
         } catch (error) {
           console.error(`[Orchestrator] Failed to get listening activity for ${targetUserId}:`, error);
           return null;
@@ -1642,26 +1656,37 @@ ${sections.join('\n\n')}
         }
       }
 
-      // Create callback to check user's listening activity
+      // Create callback to check user's listening activity (Discord presence + Navidrome fallback)
       const getUserListeningActivity = async (targetUserId: string) => {
         try {
-          // Only check if we're in a guild
-          if (!message.guild) {
-            return null;
+          // 1. First check Discord presence (Spotify desktop/mobile app)
+          if (message.guild) {
+            try {
+              const member = await message.guild.members.fetch({
+                user: targetUserId,
+                withPresences: true,
+              });
+              if (member) {
+                const discordActivity = userActivityService.getMusicActivity(member);
+                if (discordActivity) {
+                  return discordActivity;
+                }
+              }
+            } catch {
+              // Member fetch failed or no presence, continue
+            }
           }
 
-          // Fetch the member from the guild
-          const member = await message.guild.members.fetch({
-            user: targetUserId,
-            withPresences: true
-          });
-
-          if (!member) {
-            return null;
+          // 2. If no Discord presence and target user is the bot owner, check Navidrome
+          if (targetUserId === config.bot.ownerId && navidromeService.isAvailable()) {
+            const navidromeActivity = await navidromeService.getListeningActivity();
+            if (navidromeActivity) {
+              console.log(`🎧 [CLIENT] Found active Navidrome playback for owner`);
+              return navidromeActivity;
+            }
           }
 
-          // Get their listening activity
-          return userActivityService.getMusicActivity(member);
+          return null;
         } catch (error) {
           console.error(`❌ [CLIENT] Failed to get listening activity for ${targetUserId}:`, error);
           return null;
