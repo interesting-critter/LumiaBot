@@ -129,6 +129,32 @@ export class NavidromeService {
       return null;
     }
   }
+   /**
+   * Convert Navidrome now-playing status into LumiaBot's MusicActivity format
+   */
+  async getListeningActivity(): Promise<import('./user-activity').MusicActivity | null> {
+    if (!this.isAvailable()) return null;
+
+    try {
+      const nowPlaying = await this.getNowPlaying();
+      if (!nowPlaying || nowPlaying.length === 0) return null;
+
+      const current = nowPlaying[0];
+
+      return {
+        source: 'spotify', // Set to 'spotify' so existing tool formatters recognize title/artist/album/lyrics
+        trackName: current.title,
+        artistName: current.artist,
+        albumName: current.album,
+        state: current.artist,
+        details: current.title,
+        isPlaying: current.minutesAgo === 0,
+      };
+    } catch (err) {
+      console.error('❌ [NAVIDROME] Failed to get listening activity:', err);
+      return null;
+    }
+  }
 }
 
 export const navidromeService = new NavidromeService();
