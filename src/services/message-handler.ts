@@ -125,6 +125,7 @@ export interface MessageHandlerOptions {
   userId?: string;
   username?: string;
   guildId: string;
+  ownerMusicContext?: string;
   mentionedUsers?: Map<string, string>; // userId -> username mapping for users mentioned in current message
   replyContext?: { // Context when user is replying to a message
     isReply: boolean;
@@ -251,7 +252,7 @@ async function processVisionContent(
  * @returns The bot's response with potential reactions
  */
 export async function handleMessage(options: MessageHandlerOptions): Promise<MessageHandlerResponse> {
-    const { content, enableSearch, enableKnowledgeGraph, imageUrls, videoUrls, textAttachments, pageContents, userId, username, guildId, mentionedUsers, replyContext, boredomAction, channelMessages, orchestratorContextNote, currentMessageSpeaker, getUserListeningActivity, resolveUserMention, isNsfwChannel, allowNsfwImageGeneration, orchestratorEventId, orchestratorTurnId, requestFollowUp, requestCollectiveKnowledge } = options;
+    const { content, enableSearch, enableKnowledgeGraph, imageUrls, videoUrls, textAttachments, pageContents, userId, username, guildId, ownerMusicContext, mentionedUsers, replyContext, boredomAction, channelMessages, orchestratorContextNote, currentMessageSpeaker, getUserListeningActivity, resolveUserMention, isNsfwChannel, allowNsfwImageGeneration, orchestratorEventId, orchestratorTurnId, requestFollowUp, requestCollectiveKnowledge } = options;
 
   try {
     // Parse message for pronouns and mentions BEFORE processing
@@ -375,6 +376,7 @@ export async function handleMessage(options: MessageHandlerOptions): Promise<Mes
       userId,
       username,
       guildId,
+      ownerMusicContext,
       mentionedUsers,
       replyContext,
       boredomAction,
