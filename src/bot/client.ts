@@ -48,6 +48,7 @@ interface OrchestratorQueuedInfo {
 function extractStickerMedia(
   message: Message,
   logPrefix: string,
+  silent: boolean = false,
 ): {
   imageUrls: string[];
   videoUrls: { url: string; mimeType?: string }[];
@@ -67,25 +68,25 @@ function extractStickerMedia(
       case StickerFormatType.GIF:
         videoUrls.push({ url: sticker.url, mimeType: 'image/gif' });
         stickerHints.push(`[Animated sticker: ${name}]`);
-        console.log(`🎬 [${logPrefix}] GIF sticker: ${name} (${sticker.url})`);
+        if (!silent) console.log(`🎬 [${logPrefix}] GIF sticker: ${name} (${sticker.url})`);
         break;
       case StickerFormatType.APNG:
         imageUrls.push(sticker.url);
         stickerHints.push(`[Animated sticker: ${name}]`);
-        console.log(`🖼️  [${logPrefix}] APNG sticker: ${name} (${sticker.url})`);
+        if (!silent) console.log(`🖼️  [${logPrefix}] APNG sticker: ${name} (${sticker.url})`);
         break;
       case StickerFormatType.PNG:
         imageUrls.push(sticker.url);
         stickerHints.push(`[Sticker: ${name}]`);
-        console.log(`🖼️  [${logPrefix}] PNG sticker: ${name} (${sticker.url})`);
+        if (!silent) console.log(`🖼️  [${logPrefix}] PNG sticker: ${name} (${sticker.url})`);
         break;
       case StickerFormatType.Lottie:
         stickerHints.push(`[Lottie sticker: ${name}]`);
-        console.log(`✨ [${logPrefix}] Lottie sticker (name-only, no raster): ${name}`);
+        if (!silent) console.log(`✨ [${logPrefix}] Lottie sticker (name-only, no raster): ${name}`);
         break;
       default:
         stickerHints.push(`[Sticker: ${name}]`);
-        console.log(`❓ [${logPrefix}] Unknown sticker format (${sticker.format}): ${name}`);
+        if (!silent) console.log(`❓ [${logPrefix}] Unknown sticker format (${sticker.format}): ${name}`);
     }
   }
 
@@ -96,7 +97,7 @@ function extractStickerMedia(
  * Extract custom emoji CDN URLs from message content so the AI model can see them.
  * Custom emojis appear as <:name:id> (static) or <a:name:id> (animated).
  */
-function extractCustomEmojiUrls(content: string, logPrefix: string): string[] {
+function extractCustomEmojiUrls(content: string, logPrefix: string, silent: boolean = false): string[] {
   const emojiRegex = /<(a?):(\w+):(\d+)>/g;
   const urls: string[] = [];
   let match: RegExpExecArray | null;
@@ -108,7 +109,7 @@ function extractCustomEmojiUrls(content: string, logPrefix: string): string[] {
     const ext = animated ? 'gif' : 'png';
     const url = `https://cdn.discordapp.com/emojis/${id}.${ext}?size=96&quality=lossless`;
     urls.push(url);
-    console.log(`😀 [${logPrefix}] Custom emoji: :${name}: (${url})`);
+    if (!silent) console.log(`😀 [${logPrefix}] Custom emoji: :${name}: (${url})`);
   }
 
   return urls;
@@ -1248,6 +1249,9 @@ ${sections.join('\n\n')}
       const botId = this.client.user?.id;
       if (!botId) return;
 
+      // Check early if the message content mentions or keywords trigger the bot
+      const hasTrigger = shouldTriggerBot(message.content, botId);
+
       // Check if this message is a reply to someone
       let replyContext: { 
         isReply: boolean; 
@@ -1262,22 +1266,25 @@ ${sections.join('\n\n')}
       } | undefined;
 
       if (message.reference && message.reference.messageId) {
+        let shouldLog = hasTrigger;
         try {
-          // Check if this is a forwarded message (type 1) vs a regular reply (type 0)
-          const isForward = message.reference.type === 1;
-          
-          if (isForward) {
-            console.log(`📨 [CLIENT] Forwarded message detected - fetching reference with caution`);
-          }
-          
           // Fetch the referenced message
           const referencedMessage = await message.fetchReference();
           
           // Check if the referenced message is from Lumia (the bot)
           const isReplyToLumia = referencedMessage.author.id === botId;
+          shouldLog = isReplyToLumia || hasTrigger;
+
+          // Check if this is a forwarded message (type 1) vs a regular reply (type 0)
+          const isForward = message.reference.type === 1;
+          if (isForward && shouldLog) {
+            console.log(`📨 [CLIENT] Forwarded message detected - fetching reference with caution`);
+          }
           
           const referencedAuthorName = getMessageAuthorDisplayName(referencedMessage);
-          console.log(`💬 [CLIENT] Reply detected to ${isReplyToLumia ? 'Lumia' : referencedAuthorName}: "${referencedMessage.content.slice(0, 100)}..."`);
+          if (shouldLog) {
+            console.log(`💬 [CLIENT] Reply detected to ${isReplyToLumia ? 'Lumia' : referencedAuthorName}: "${referencedMessage.content.slice(0, 100)}..."`);
+          }
           
           // Extract embedded content from referenced message
           const embeddedImages: string[] = [];
@@ -1291,16 +1298,16 @@ ${sections.join('\n\n')}
                   url: attachment.url,
                   mimeType: attachment.contentType,
                 });
-                console.log(`🎬 [CLIENT] Referenced GIF attachment: ${attachment.name}`);
+                if (shouldLog) console.log(`🎬 [CLIENT] Referenced GIF attachment: ${attachment.name}`);
               } else if (attachment.contentType?.startsWith('image/')) {
                 embeddedImages.push(attachment.url);
-                console.log(`🖼️  [CLIENT] Referenced image attachment: ${attachment.name}`);
+                if (shouldLog) console.log(`🖼️  [CLIENT] Referenced image attachment: ${attachment.name}`);
               } else if (attachment.contentType?.startsWith('video/')) {
                 embeddedVideos.push({
                   url: attachment.url,
                   mimeType: attachment.contentType,
                 });
-                console.log(`🎥 [CLIENT] Referenced video attachment: ${attachment.name}`);
+                if (shouldLog) console.log(`🎥 [CLIENT] Referenced video attachment: ${attachment.name}`);
               }
             });
           }
@@ -1316,7 +1323,7 @@ ${sections.join('\n\n')}
                   url: embed.video.url,
                   mimeType: 'image/gif',
                 });
-                console.log(`🎬 [CLIENT] Referenced GIFV embed: ${embed.url || embed.video.url}`);
+                if (shouldLog) console.log(`🎬 [CLIENT] Referenced GIFV embed: ${embed.url || embed.video.url}`);
               }
               // Video embeds (YouTube, etc.)
               else if (embedType === 'video' && embed.video?.url) {
@@ -1324,35 +1331,34 @@ ${sections.join('\n\n')}
                   url: embed.video.proxyURL || embed.video.url,
                   mimeType: 'video/mp4',
                 });
-                console.log(`🎥 [CLIENT] Referenced video embed: ${embed.url || embed.video.url}`);
+                if (shouldLog) console.log(`🎥 [CLIENT] Referenced video embed: ${embed.url || embed.video.url}`);
               }
               // Image embeds
               else if (embedType === 'image' && embed.image?.url) {
                 embeddedImages.push(embed.image.proxyURL || embed.image.url);
-                console.log(`🖼️  [CLIENT] Referenced image embed: ${embed.image.url}`);
+                if (shouldLog) console.log(`🖼️  [CLIENT] Referenced image embed: ${embed.image.url}`);
               }
               // Rich embeds with images or thumbnails (link previews, etc.)
               else if (embedType === 'rich' || embedType === 'article' || embedType === 'link') {
                 if (embed.image?.url) {
                   embeddedImages.push(embed.image.proxyURL || embed.image.url);
-                  console.log(`🖼️  [CLIENT] Referenced rich embed image: ${embed.image.url}`);
+                  if (shouldLog) console.log(`🖼️  [CLIENT] Referenced rich embed image: ${embed.image.url}`);
                 }
                 if (embed.thumbnail?.url) {
                   embeddedImages.push(embed.thumbnail.proxyURL || embed.thumbnail.url);
-                  console.log(`🖼️  [CLIENT] Referenced rich embed thumbnail: ${embed.thumbnail.url}`);
+                  if (shouldLog) console.log(`🖼️  [CLIENT] Referenced rich embed thumbnail: ${embed.thumbnail.url}`);
                 }
               }
             }
           }
           
           // Extract stickers from the referenced message
-          const referencedStickerMedia = extractStickerMedia(referencedMessage, 'CLIENT');
+          const referencedStickerMedia = extractStickerMedia(referencedMessage, 'CLIENT', !shouldLog);
           embeddedImages.push(...referencedStickerMedia.imageUrls);
           embeddedVideos.push(...referencedStickerMedia.videoUrls);
 
           // Extract custom emoji images from the referenced message
-          embeddedImages.push(...extractCustomEmojiUrls(referencedMessage.content, 'CLIENT'));
-
+          embeddedImages.push(...extractCustomEmojiUrls(referencedMessage.content, 'CLIENT', !shouldLog));
 
           const originalContentWithStickers = referencedStickerMedia.stickerHints.length > 0
             ? (referencedMessage.content
@@ -1372,20 +1378,20 @@ ${sections.join('\n\n')}
             },
           };
         } catch (error: any) {
-          // Handle specific error cases
-          if (error.code === 10008 || error.message?.includes('Unknown Message')) {
-            console.warn(`⚠️ [CLIENT] Referenced message not found (deleted or inaccessible): ${message.reference.messageId}`);
-          } else if (error.code === 50001 || error.message?.includes('Missing Access')) {
-            console.warn(`⚠️ [CLIENT] No access to referenced message in channel: ${message.reference.channelId}`);
-          } else {
-            console.error('❌ [CLIENT] Failed to fetch referenced message:', error);
+          if (shouldLog) {
+            if (error.code === 10008 || error.message?.includes('Unknown Message')) {
+              console.warn(`⚠️ [CLIENT] Referenced message not found (deleted or inaccessible): ${message.reference.messageId}`);
+            } else if (error.code === 50001 || error.message?.includes('Missing Access')) {
+              console.warn(`⚠️ [CLIENT] No access to referenced message in channel: ${message.reference.channelId}`);
+            } else {
+              console.error('❌ [CLIENT] Failed to fetch referenced message:', error);
+            }
           }
           // Continue without reply context if we can't fetch it
         }
       }
 
       // Check if message should trigger the bot
-      const hasTrigger = shouldTriggerBot(message.content, botId);
       const isReplyToLumia = replyContext?.isReplyToLumia === true;
       
       // Trigger if: has keyword/mention OR is reply to Lumia OR is reply with mention
