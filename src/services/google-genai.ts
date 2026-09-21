@@ -1166,18 +1166,35 @@ ONLY use this tool when you detect CLEAR, EXPLICIT intent to change boredom sett
                 result += `\n⏱️ Duration: ${minutes}:${seconds.toString().padStart(2, '0')}`;
               }
 
-              // Fold in lyrics from LRCLib when available
+              // Fetch lyrics: Check Navidrome first, then fall back to LRCLib
               try {
-                const lyrics = await lrclibService.getLyrics(
-                  activity.trackName,
-                  activity.artistName,
-                  activity.albumName,
-                  durationSec,
-                );
-                if (lyrics?.instrumental) {
-                  result += `\n\n🎤 Lyrics: (instrumental — no lyrics)`;
-                } else if (lyrics?.plainLyrics) {
-                  result += `\n\n🎤 **Lyrics:**\n${lyrics.plainLyrics}`;
+                const { navidromeService } = await import('./navidrome');
+                let lyricsText: string | null = null;
+
+                if (navidromeService.isAvailable()) {
+                  const navLyrics = await navidromeService.getLyrics(activity.artistName, activity.trackName);
+                  if (navLyrics && navLyrics.trim()) {
+                    lyricsText = navLyrics.replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, '').trim();
+                  }
+                }
+
+                // Fallback to LRCLib if Navidrome has no lyrics
+                if (!lyricsText) {
+                  const lyrics = await lrclibService.getLyrics(
+                    activity.trackName,
+                    activity.artistName,
+                    activity.albumName,
+                    durationSec,
+                  );
+                  if (lyrics?.instrumental) {
+                    lyricsText = '(instrumental — no lyrics)';
+                  } else if (lyrics?.plainLyrics) {
+                    lyricsText = lyrics.plainLyrics;
+                  }
+                }
+
+                if (lyricsText) {
+                  result += `\n\n🎤 **Lyrics:**\n${lyricsText}`;
                 }
               } catch (lyricsError) {
                 console.error('🎤 [Google GenAI] Error fetching lyrics:', lyricsError);
